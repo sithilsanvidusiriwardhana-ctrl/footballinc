@@ -3,6 +3,7 @@
 #include <string.h>
 #include "../include/csv_parser.h"
 #include "../include/analytics.h"
+#include "../include/auth.h"
 
 void print_usage(const char* prog_name) {
     printf("C Data Analysis Tool\n");
@@ -18,6 +19,10 @@ void print_usage(const char* prog_name) {
 }
 
 int main(int argc, char* argv[]) {
+    if (!authenticate_user()) {
+        return 1;
+    }
+
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;

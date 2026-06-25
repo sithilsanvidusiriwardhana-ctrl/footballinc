@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -Iinclude -std=c99
 LDFLAGS = -lm
 
-SRC = src/main.c src/csv_parser.c src/analytics.c
+SRC = src/main.c src/csv_parser.c src/analytics.c src/auth.c
 OBJ = $(SRC:.c=.o)
 TARGET = data_analyzer
 
