@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Inc. - CSV Data Analyzer</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Notification system -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen active">
+        <div class="login-wrapper">
+            <div class="login-header">
+                <div class="logo-icon"><i class="fa-solid fa-chart-line"></i></div>
+                <h1>FOOTBALL INC.</h1>
+                <p>Secure CSV Data Analyzer & Statistics Dashboard</p>
+            </div>
+            
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="username"><i class="fa-solid fa-user"></i> Username</label>
+                    <input type="text" id="username" placeholder="Enter username" required autocomplete="username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password"><i class="fa-solid fa-lock"></i> Password</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="password" placeholder="Enter password" required autocomplete="current-password">
+                        <button type="button" id="toggle-password" class="toggle-password-btn">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <button type="submit" id="login-btn" class="btn btn-primary btn-block">
+                    <span>Login Securely</span> <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                </button>
+            </form>
+            <div class="login-footer">
+                <p>Default credentials: <code>admin:admin123</code> (synchronized with <code>users.txt</code>)</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Screen -->
+    <div id="dashboard-screen" class="screen">
+        <!-- Top Nav -->
+        <header class="navbar">
+            <div class="nav-logo">
+                <i class="fa-solid fa-football-ball ball-spin"></i>
+                <span>FOOTBALL<span class="highlight">INC.</span></span>
+            </div>
+            <div class="nav-user">
+                <span class="user-greeting">Welcome, <strong id="user-display-name">Admin</strong></span>
+                <button id="logout-btn" class="btn btn-outline-danger btn-sm">
+                    <i class="fa-solid fa-power-off"></i> Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Layout Grid -->
+        <div class="dashboard-container">
+            
+            <!-- Sidebar: File Listing & Upload -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <div class="section-title">
+                        <h3><i class="fa-solid fa-folder-open"></i> CSV Files</h3>
+                        <button id="refresh-files-btn" title="Refresh files list" class="btn-icon"><i class="fa-solid fa-rotate"></i></button>
+                    </div>
+                    <ul id="files-list" class="files-list">
+                        <!-- Loaded dynamically -->
+                        <div class="loading-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading files...</div>
+                    </ul>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="section-title">
+                        <h3><i class="fa-solid fa-cloud-arrow-up"></i> Upload CSV</h3>
+                    </div>
+                    <div id="dropzone" class="dropzone">
+                        <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
+                        <i class="fa-solid fa-file-csv upload-icon"></i>
+                        <p class="dropzone-text">Drag & drop CSV file here or <span class="browse-link">browse</span></p>
+                        <p class="dropzone-subtext">Max size 10MB</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Work Area -->
+            <main class="main-content">
+                <!-- No File Selected Landing View -->
+                <div id="landing-view" class="active-view">
+                    <div class="landing-content">
+                        <i class="fa-solid fa-database database-big-icon"></i>
+                        <h2>Select a CSV dataset to get started</h2>
+                        <p>Choose an existing CSV file from the list or upload a new file to analyze stats, filter data, and run queries.</p>
+                    </div>
+                </div>
+
+                <!-- Active File View -->
+                <div id="analysis-view" class="inactive-view">
+                    
+                    <!-- File Metadata Header Banner -->
+                    <div class="file-header-card">
+                        <div class="file-info-main">
+                            <span class="file-badge" id="active-file-source">DEFAULT</span>
+                            <h2 id="active-file-name">sample.csv</h2>
+                            <div class="meta-pills">
+                                <span class="meta-pill"><i class="fa-solid fa-table-rows"></i> <span id="active-file-rows">0</span> Rows</span>
+                                <span class="meta-pill"><i class="fa-solid fa-table-columns"></i> <span id="active-file-cols">0</span> Columns</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column Explorer & Statistics Dashboard Grid -->
+                    <div class="analytics-grid">
+                        
+                        <!-- Column Selector Panel -->
+                        <div class="glass-card col-selector-panel">
+                            <h3 class="card-title"><i class="fa-solid fa-list-check"></i> Columns</h3>
+                            <p class="card-subtitle">Click a numeric column to calculate statistics</p>
+                            <div id="columns-container" class="columns-container">
+                                <!-- Loaded dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Statistics Panel -->
+                        <div class="glass-card stats-panel">
+                            <h3 class="card-title"><i class="fa-solid fa-calculator"></i> Descriptive Statistics</h3>
+                            <div id="stats-placeholder" class="stats-placeholder active">
+                                <i class="fa-solid fa-chart-bar placeholder-icon"></i>
+                                <p>Select a numeric column from the list to view its statistics</p>
+                            </div>
+                            
+                            <div id="stats-data-container" class="stats-data-container">
+                                <h4 class="active-stat-column" id="stat-column-name">Salary</h4>
+                                
+                                <div class="stats-grid">
+                                    <div class="stat-card">
+                                        <div class="stat-label">Mean (Average)</div>
+                                        <div class="stat-value" id="stat-mean">61,429.50</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="stat-label">Median (Middle)</div>
+                                        <div class="stat-value" id="stat-median">58,000.50</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="stat-label">Min (Lowest)</div>
+                                        <div class="stat-value" id="stat-min">42,000.25</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="stat-label">Max (Highest)</div>
+                                        <div class="stat-value" id="stat-max">85,000.75</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="stat-label">Standard Deviation</div>
+                                        <div class="stat-value" id="stat-stddev">14,352.41</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="stat-label">Variance</div>
+                                        <div class="stat-value" id="stat-variance">206,000,000</div>
+                                    </div>
+                                    <div class="stat-card stat-sub">
+                                        <div class="stat-label">Valid Records</div>
+                                        <div class="stat-value" id="stat-count">7</div>
+                                    </div>
+                                    <div class="stat-card stat-sub">
+                                        <div class="stat-label">Missing/Empty Records</div>
+                                        <div class="stat-value" id="stat-missing">0</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Query / Filter Section -->
+                    <div class="glass-card filter-card">
+                        <div class="filter-header">
+                            <h3 class="card-title"><i class="fa-solid fa-filter"></i> Query & Filter Tool</h3>
+                            <button id="clear-filter-btn" class="btn btn-outline btn-sm inactive"><i class="fa-solid fa-times"></i> Clear Filter</button>
+                        </div>
+                        
+                        <form id="filter-form" class="filter-form">
+                            <div class="filter-inputs">
+                                <div class="filter-group">
+                                    <label>Column</label>
+                                    <select id="filter-column" required>
+                                        <option value="" disabled selected>Select column</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>Operator</label>
+                                    <select id="filter-operator" required>
+                                        <option value="=">=</option>
+                                        <option value=">">&gt;</option>
+                                        <option value="<">&lt;</option>
+                                        <option value="like">like</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group val-input-group">
+                                    <label>Value</label>
+                                    <input type="text" id="filter-value" placeholder="Enter target value..." required>
+                                </div>
+                                <div class="filter-submit-group">
+                                    <button type="submit" class="btn btn-primary filter-btn">
+                                        <i class="fa-solid fa-magnifying-glass"></i> Filter
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                        
+                        <div id="filter-status-alert" class="filter-status-alert">
+                            Found <strong id="filter-match-count">0</strong> matching row(s).
+                        </div>
+                    </div>
+
+                    <!-- Data Grid View Card -->
+                    <div class="glass-card data-grid-card">
+                        <div class="grid-header">
+                            <h3 class="card-title"><i class="fa-solid fa-table"></i> Data Viewer</h3>
+                            <div class="grid-actions">
+                                <span class="grid-counter" id="grid-row-counter">Showing 1-10 of 10 rows</span>
+                            </div>
+                        </div>
+                        
+                        <div class="table-wrapper">
+                            <table id="data-table" class="data-table">
+                                <thead>
+                                    <!-- Populated dynamically -->
+                                </thead>
+                                <tbody>
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination Controls -->
+                        <div class="pagination-controls" id="pagination-controls-wrapper">
+                            <button id="prev-page-btn" class="btn btn-outline btn-sm"><i class="fa-solid fa-chevron-left"></i> Previous</button>
+                            <div class="page-numbers" id="page-numbers-container">
+                                <!-- Loaded dynamically -->
+                            </div>
+                            <button id="next-page-btn" class="btn btn-outline btn-sm">Next <i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+
+        </div>
+    </div>
+
+    <!-- Script loading -->
+    <script src="app.js"></script>
+</body>
+</html>
