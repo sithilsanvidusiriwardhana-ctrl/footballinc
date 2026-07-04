@@ -86,6 +86,14 @@ function checkAuthentication() {
         userDisplayName.textContent = currentUser.username;
         showToast(`Welcome back, ${currentUser.username}!`, 'success');
         loadFilesList();
+        // Show/hide upload controls based on role
+        if (currentUser.role && currentUser.role !== 'admin') {
+            dropzone.style.display = 'none';
+            csvFileInput.disabled = true;
+        } else {
+            dropzone.style.display = '';
+            csvFileInput.disabled = false;
+        }
     } else {
         // Not logged in
         dashboardScreen.classList.remove('active');
@@ -247,7 +255,8 @@ async function loadFilesList() {
             `;
 
             // Delete button for uploaded files
-            if (!isDefault) {
+            // Delete button for uploaded files (admin only)
+            if (!isDefault && currentUser && currentUser.role === 'admin') {
                 const delBtn = document.createElement('button');
                 delBtn.className = 'file-delete-btn btn-icon';
                 delBtn.title = "Delete uploaded file";
@@ -277,7 +286,8 @@ async function handleFileUpload(file) {
     try {
         const res = await fetch(`${API_BASE}/api/files/upload`, {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}
         });
 
         const data = await res.json();
@@ -304,6 +314,7 @@ async function handleDeleteFile(filename) {
     try {
         const res = await fetch(`${API_BASE}/api/files/${filename}`, {
             method: 'DELETE'
+            headers: currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}
         });
 
         const data = await res.json();

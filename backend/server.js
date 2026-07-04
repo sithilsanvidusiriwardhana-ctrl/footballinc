@@ -43,20 +43,21 @@ const upload = multer({ storage });
 function logAttempt(username, success) {
     try {
         const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        const logMsg = `[${timestamp}] User '${username}' logged in ${success ? 'successfully' : 'failed login attempt'}.\n`;
+        const logMsg = `[${timestamp}] User '${username}' logged in ${success ? 'successfully' : 'failed login attempt'}.
+`;
         fs.appendFileSync(LOG_FILE, logMsg, 'utf8');
     } catch (err) {
         console.error("Failed to write to login attempts log:", err);
     }
 }
 
-// Helper to check credentials in users.txt, matching C logic
-function checkCredentials(username, password) {
+// Read users and return role string on success, null on failure
+function getUserRole(username, password) {
     try {
-        // Auto create users.txt with admin:admin123 if not exists
+        // Auto create users.txt with admin:admin123:admin if not exists
         if (!fs.existsSync(USERS_FILE)) {
-            fs.writeFileSync(USERS_FILE, "admin:admin123\n", 'utf8');
-            console.log(`[System Info] Created default credentials file 'users.txt' (admin:admin123).`);
+            fs.writeFileSync(USERS_FILE, "admin:admin123:admin\n", 'utf8');
+            console.log(`[System Info] Created default credentials file 'users.txt' (admin:admin123:admin).`);
         }
 
         const data = fs.readFileSync(USERS_FILE, 'utf8');
@@ -68,25 +69,30 @@ function checkCredentials(username, password) {
                 continue;
             }
 
-            // Find delimiter : or ,
-            let delimIdx = line.indexOf(':');
-            if (delimIdx === -1) {
-                delimIdx = line.indexOf(',');
+            // Accept formats: username:password:role  OR username:password
+
+            // Accept : or , as delimiters for compatibility
+            let parts = null;
+            if (line.indexOf(':') !== -1) {
+                parts = line.split(':');
+            } else if (line.indexOf(',') !== -1) {
+                parts = line.split(',');
             }
 
-            if (delimIdx !== -1) {
-                const fileUser = line.substring(0, delimIdx).trim();
-                const filePass = line.substring(delimIdx + 1).trim();
+            if (parts && parts.length >= 2) {
+                const fileUser = parts[0].trim();
+                const filePass = parts[1].trim();
+                const fileRole = (parts.length >= 3 && parts[2].trim() !== "") ? parts[2].trim() : (fileUser === 'admin' ? 'admin' : 'user');
 
                 if (fileUser === username && filePass === password) {
-                    return true;
+                    return fileRole;
                 }
             }
         }
     } catch (err) {
         console.error("Error checking credentials:", err);
     }
-    return false;
+    return null;
 }
 
 // Locate file helper (looks in uploads/ or default data/)
@@ -113,21 +119,66 @@ app.post('/api/auth/login', (req, res) => {
     if (!username || !password) {
         return res.status(400).json({ error: "Username and password are required" });
     }
-
-    const success = checkCredentials(username.trim(), password.trim());
+    const role = checkCredentials(username.trim(), password.trim());
+    const success = role !== null;
     logAttempt(username, success);
 
     if (success) {
+        const token = Buffer.from(`${username.trim()}:${role}:${Date.now()}`).toString('base64');
         return res.json({ 
             success: true, 
             message: "Login successful", 
-            user: { username },
-            token: Buffer.from(`${username}:${Date.now()}`).toString('base64') // Simple mock JWT token
+            user: { username: username.trim(), role },
+            token // Simple mock token containing role
         });
     } else {
         return res.status(401).json({ error: "Access Denied. Incorrect username or password." });
     }
 });
+
+// Helper: extract role from token and validate against users.txt.
+function getRoleFromToken(token) {
+    if (!token) return null;
+    try {
+        const decoded = Buffer.from(token, 'base64').toString('utf8');
+        // Expect format username:role:timestamp
+        const parts = decoded.split(':');
+        if (parts.length < 2) return null;
+        const username = parts[0];
+        const role = parts[1];
+
+        // Validate that this username still exists with the same role in users.txt
+        if (!fs.existsSync(USERS_FILE)) return null;
+        const data = fs.readFileSync(USERS_FILE, 'utf8');
+        const lines = data.split(/\r?\n/);
+        for (let line of lines) {
+            line = line.trim();
+            if (line === "" || line.startsWith('#')) continue;
+            let partsLine = null;
+            if (line.indexOf(':') !== -1) partsLine = line.split(':');
+            else if (line.indexOf(',') !== -1) partsLine = line.split(',');
+            if (partsLine && partsLine.length >= 2) {
+                const fileUser = partsLine[0].trim();
+                const fileRole = (partsLine.length >= 3 && partsLine[2].trim() !== "") ? partsLine[2].trim() : (fileUser === 'admin' ? 'admin' : 'user');
+                if (fileUser === username && fileRole === role) return role;
+            }
+        }
+    } catch (err) {
+        return null;
+    }
+    return null;
+}
+
+// Middleware to require admin role
+function requireAdmin(req, res, next) {
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'Missing Authorization header' });
+    const parts = authHeader.split(' ');
+    const token = parts.length === 2 ? parts[1] : parts[0];
+    const role = getRoleFromToken(token);
+    if (role === 'admin') return next();
+    return res.status(403).json({ error: 'Forbidden: admin role required' });
+}
 
 // List CSV Files Route
 app.get('/api/files', (req, res) => {
@@ -178,8 +229,8 @@ app.get('/api/files', (req, res) => {
     }
 });
 
-// Upload CSV Route
-app.post('/api/files/upload', upload.single('csv'), (req, res) => {
+// Upload CSV Route (admin only)
+app.post('/api/files/upload', requireAdmin, upload.single('csv'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: "No file uploaded or invalid parameter" });
     }
@@ -201,8 +252,8 @@ app.post('/api/files/upload', upload.single('csv'), (req, res) => {
     });
 });
 
-// Delete CSV Route (Optional UI helper)
-app.delete('/api/files/:filename', (req, res) => {
+// Delete CSV Route (admin only)
+app.delete('/api/files/:filename', requireAdmin, (req, res) => {
     const filename = req.params.filename;
     const safeName = path.basename(filename);
     const uploadedPath = path.join(UPLOADS_DIR, safeName);
